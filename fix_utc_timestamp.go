@@ -16,6 +16,7 @@ const (
 	Nanos
 )
 
+//时间类型，精度
 //FIXUTCTimestamp is a FIX UTC Timestamp value, implements FieldValue
 type FIXUTCTimestamp struct {
 	time.Time

@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+//包含了所有的字段TagValue中有tag和value
+//切片类型，存储多个TagValue??
+//field应该只用了一个。
 //field stores a slice of TagValues
 type field []TagValue
 
@@ -13,19 +16,23 @@ func fieldTag(f field) Tag {
 	return f[0].tag
 }
 
+//设置索引为0的元素
 func initField(f field, tag Tag, value []byte) {
 	f[0].init(tag, value)
 }
 
+//遍历了切片，对于其中的tv.bytes写入到buffer中
 func writeField(f field, buffer *bytes.Buffer) {
 	for _, tv := range f {
 		buffer.Write(tv.bytes)
 	}
 }
 
+//判断两个tag的顺序
 // tagOrder true if tag i should occur before tag j
 type tagOrder func(i, j Tag) bool
 
+//tag类型排序，以为FIX部分字段有顺序设置
 type tagSort struct {
 	tags    []Tag
 	compare tagOrder
@@ -35,13 +42,14 @@ func (t tagSort) Len() int           { return len(t.tags) }
 func (t tagSort) Swap(i, j int)      { t.tags[i], t.tags[j] = t.tags[j], t.tags[i] }
 func (t tagSort) Less(i, j int) bool { return t.compare(t.tags[i], t.tags[j]) }
 
-//多个fields
+//多个fields，通过map创建了tag到field的映射
 //FieldMap is a collection of fix fields that make up a fix message.
 type FieldMap struct {
 	tagLookup map[Tag]field
 	tagSort
 }
 
+//按照序号进行字段的排序
 // ascending tags
 func normalFieldOrder(i, j Tag) bool { return i < j }
 
@@ -54,6 +62,7 @@ func (m *FieldMap) initWithOrdering(ordering tagOrder) {
 	m.compare = ordering
 }
 
+//获取FieldMap中tag，返回切片形式
 //Tags returns all of the Field Tags in this FieldMap
 func (m FieldMap) Tags() []Tag {
 	tags := make([]Tag, 0, len(m.tagLookup))
@@ -75,6 +84,7 @@ func (m FieldMap) Has(tag Tag) bool {
 	return ok
 }
 
+//从FieldMap中根据Tag获取Fieldvalue，然后parser.Read读取value
 //GetField parses of a field with Tag tag. Returned reject may indicate the field is not present, or the field value is invalid.
 func (m FieldMap) GetField(tag Tag, parser FieldValueReader) MessageRejectError {
 	f, ok := m.tagLookup[tag]
@@ -89,6 +99,7 @@ func (m FieldMap) GetField(tag Tag, parser FieldValueReader) MessageRejectError 
 	return nil
 }
 
+//直接返回Value对应的字节切片
 //GetBytes is a zero-copy GetField wrapper for []bytes fields
 func (m FieldMap) GetBytes(tag Tag) ([]byte, MessageRejectError) {
 	f, ok := m.tagLookup[tag]
@@ -109,6 +120,7 @@ func (m FieldMap) GetBool(tag Tag) (bool, MessageRejectError) {
 	return bool(val), nil
 }
 
+//读取整数
 //GetInt is a GetField wrapper for int fields
 func (m FieldMap) GetInt(tag Tag) (int, MessageRejectError) {
 	bytes, err := m.GetBytes(tag)
@@ -165,6 +177,7 @@ func (m FieldMap) GetGroup(parser FieldGroupReader) MessageRejectError {
 	return nil
 }
 
+//设置字段中的值
 //SetField sets the field with Tag tag
 func (m *FieldMap) SetField(tag Tag, field FieldValueWriter) *FieldMap {
 	return m.SetBytes(tag, field.Write())
@@ -172,6 +185,7 @@ func (m *FieldMap) SetField(tag Tag, field FieldValueWriter) *FieldMap {
 
 //SetBytes sets bytes
 func (m *FieldMap) SetBytes(tag Tag, value []byte) *FieldMap {
+	//如果没有tag，创建tag
 	f := m.getOrCreate(tag)
 	initField(f, tag, value)
 	return m
@@ -195,7 +209,9 @@ func (m *FieldMap) SetString(tag Tag, value string) *FieldMap {
 
 //Clear purges all fields from field map
 func (m *FieldMap) Clear() {
+	//re-slice
 	m.tags = m.tags[0:0]
+	//删除map的value
 	for k := range m.tagLookup {
 		delete(m.tagLookup, k)
 	}
@@ -257,6 +273,7 @@ func (m *FieldMap) sortedTags() []Tag {
 	return m.tags
 }
 
+//按照tag序号，将vlaue写入到Buffer中
 func (m FieldMap) write(buffer *bytes.Buffer) {
 	for _, tag := range m.sortedTags() {
 		if f, ok := m.tagLookup[tag]; ok {
