@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"runtime/debug"
@@ -45,14 +46,17 @@ type ConnectionValidator interface {
 //Start accepting connections.
 func (a *Acceptor) Start() (err error) {
 	socketAcceptHost := ""
+	//检查socket 连接地址
 	if a.settings.GlobalSettings().HasSetting(config.SocketAcceptHost) {
 		if socketAcceptHost, err = a.settings.GlobalSettings().Setting(config.SocketAcceptHost); err != nil {
 			return
 		}
 	}
 
+	//每个session，根据FIX版本不同有多个session
 	a.sessionHostPort = make(map[SessionID]int)
 	a.listeners = make(map[string]net.Listener)
+	//遍历获取session，将地址和端口进行连接，形成访问字符串
 	for sessionID, sessionSettings := range a.settings.SessionSettings() {
 		if sessionSettings.HasSetting(config.SocketAcceptPort) {
 			if a.sessionHostPort[sessionID], err = sessionSettings.IntSetting(config.SocketAcceptPort); err != nil {
@@ -70,6 +74,7 @@ func (a *Acceptor) Start() (err error) {
 		return
 	}
 
+	//TCP代理
 	var useTCPProxy bool
 	if a.settings.GlobalSettings().HasSetting(config.UseTCPProxy) {
 		if useTCPProxy, err = a.settings.GlobalSettings().BoolSetting(config.UseTCPProxy); err != nil {
@@ -77,7 +82,9 @@ func (a *Acceptor) Start() (err error) {
 		}
 	}
 
+	//TCP监听
 	for address := range a.listeners {
+		fmt.Println("the local address is:%s\n", address)
 		if tlsConfig != nil {
 			if a.listeners[address], err = tls.Listen("tcp", address, tlsConfig); err != nil {
 				return
@@ -89,6 +96,7 @@ func (a *Acceptor) Start() (err error) {
 		}
 	}
 
+	//遍历sessions运行，执行session中的run()
 	for _, s := range a.sessions {
 		a.sessionGroup.Add(1)
 		go func(s *session) {
@@ -104,6 +112,7 @@ func (a *Acceptor) Start() (err error) {
 			a.sessionGroup.Done()
 		}()
 	}
+	//listeners监听
 	a.listenerShutdown.Add(len(a.listeners))
 	for _, listener := range a.listeners {
 		go a.listenForConnections(listener)
@@ -183,6 +192,8 @@ func NewAcceptor(app Application, storeFactory MessageStoreFactory, settings *Se
 	return
 }
 
+//等待客户端接入，accept
+//然后通过goroutine处理连接
 func (a *Acceptor) listenForConnections(listener net.Listener) {
 	defer a.listenerShutdown.Done()
 
@@ -213,9 +224,12 @@ func (a *Acceptor) handleConnection(netConn net.Conn) {
 		}
 	}()
 
+	//通过netConn创建Read
 	reader := bufio.NewReader(netConn)
+	//创建解析器，读取socket中的数据进行解析
 	parser := newParser(reader)
 
+	//读取一个消息
 	msgBytes, err := parser.ReadMessage()
 	if err != nil {
 		if err == io.EOF {
@@ -226,13 +240,16 @@ func (a *Acceptor) handleConnection(netConn net.Conn) {
 		return
 	}
 
+	//构造FIX消息
 	msg := NewMessage()
+	//解析消息
 	err = ParseMessage(msg, msgBytes)
 	if err != nil {
 		a.invalidMessage(msgBytes, err)
 		return
 	}
 
+	//解析各字段
 	var beginString FIXString
 	if err := msg.Header.GetField(tagBeginString, &beginString); err != nil {
 		a.invalidMessage(msgBytes, err)
@@ -288,6 +305,7 @@ func (a *Acceptor) handleConnection(netConn net.Conn) {
 		TargetCompID: string(senderCompID), TargetSubID: string(senderSubID), TargetLocationID: string(senderLocationID),
 	}
 
+	//获取本地tcp地址
 	localConnectionPort := netConn.LocalAddr().(*net.TCPAddr).Port
 	if expectedPort, ok := a.sessionHostPort[sessID]; !ok || expectedPort != localConnectionPort {
 		a.globalLog.OnEventf("Session %v not found for incoming message: %s", sessID, msgBytes)
