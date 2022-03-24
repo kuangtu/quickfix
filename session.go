@@ -67,17 +67,20 @@ type connect struct {
 
 func (s *session) connect(msgIn <-chan fixIn, msgOut chan<- []byte) error {
 	rep := make(chan error)
+	//向admin管道放入消息
 	s.admin <- connect{
 		messageOut: msgOut,
 		messageIn:  msgIn,
 		err:        rep,
 	}
 
+	//创建了error管道，读取
 	return <-rep
 }
 
 type stopReq struct{}
 
+//session停止
 func (s *session) stop() {
 	s.admin <- stopReq{}
 }
@@ -148,8 +151,10 @@ func (s *session) sendLogon() error {
 	return s.sendLogonInReplyTo(s.shouldSendReset(), nil)
 }
 
+//创建登录消息
 func (s *session) sendLogonInReplyTo(setResetSeqNum bool, inReplyTo *Message) error {
 	logon := NewMessage()
+	fmt.Println("create logon message")
 	logon.Header.SetField(tagMsgType, FIXString("A"))
 	logon.Header.SetField(tagBeginString, FIXString(s.sessionID.BeginString))
 	logon.Header.SetField(tagTargetCompID, FIXString(s.sessionID.TargetCompID))
@@ -185,6 +190,7 @@ func (s *session) buildLogout(reason string) *Message {
 	return logout
 }
 
+//退出消息
 func (s *session) sendLogout(reason string) error {
 	return s.sendLogoutInReplyTo(reason, nil)
 }
@@ -266,14 +272,16 @@ func (s *session) dropAndSend(msg *Message) error {
 	return s.dropAndSendInReplyTo(msg, nil)
 }
 func (s *session) dropAndSendInReplyTo(msg *Message, inReplyTo *Message) error {
+	//sendMutex互斥，应该是心跳消息也需要发送
 	s.sendMutex.Lock()
 	defer s.sendMutex.Unlock()
-
+	//
 	msgBytes, err := s.prepMessageForSend(msg, inReplyTo)
 	if err != nil {
 		return err
 	}
 
+	//放入到队列中
 	s.dropQueued()
 	s.toSend = append(s.toSend, msgBytes)
 	s.sendQueued()
@@ -283,6 +291,7 @@ func (s *session) dropAndSendInReplyTo(msg *Message, inReplyTo *Message) error {
 
 func (s *session) prepMessageForSend(msg *Message, inReplyTo *Message) (msgBytes []byte, err error) {
 	s.fillDefaultHeader(msg, inReplyTo)
+	//获取消息编号
 	seqNum := s.store.NextSenderMsgSeqNum()
 	msg.Header.SetField(tagMsgSeqNum, FIXInt(seqNum))
 
@@ -462,6 +471,7 @@ func (s *session) handleLogon(msg *Message) error {
 	s.sentReset = false
 
 	s.peerTimer.Reset(time.Duration(float64(1.2) * float64(s.HeartBtInt)))
+	//会话建立之后执行
 	s.application.OnLogon(s.sessionID)
 
 	if err := s.checkTargetTooHigh(msg); err != nil {
@@ -711,6 +721,7 @@ func (s *session) onDisconnect() {
 func (s *session) onAdmin(msg interface{}) {
 	switch msg := msg.(type) {
 
+	//连接消息,connect通知消息
 	case connect:
 
 		if s.IsConnected() {
@@ -737,9 +748,10 @@ func (s *session) onAdmin(msg interface{}) {
 		s.messageIn = msg.messageIn
 		s.messageOut = msg.messageOut
 		s.sentReset = false
-
+		//建立会话
 		s.Connect(s)
 
+	//停止消息
 	case stopReq:
 		s.Stop(s)
 
@@ -768,7 +780,9 @@ func (s *session) run() {
 	for !s.Stopped() {
 		select {
 
+		//Admin消息
 		case msg := <-s.admin:
+			fmt.Println("recv admin msg")
 			s.onAdmin(msg)
 		//收到send消息事件
 		case <-s.messageEvent:
@@ -784,6 +798,7 @@ func (s *session) run() {
 		case evt := <-s.sessionEvent:
 			s.Timeout(s, evt)
 
+		//触发timer事件
 		case now := <-ticker.C:
 			s.CheckSessionTime(s, now)
 		}

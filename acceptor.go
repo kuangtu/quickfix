@@ -344,16 +344,19 @@ func (a *Acceptor) handleConnection(netConn net.Conn) {
 	msgIn := make(chan fixIn)
 	msgOut := make(chan []byte)
 
+	//收到了客户端发送的“会话管理层”消息？？
 	if err := session.connect(msgIn, msgOut); err != nil {
 		a.globalLog.OnEventf("Unable to accept %v", err.Error())
 		return
 	}
 
+	//read 通过goroutine执行
 	go func() {
 		msgIn <- fixIn{msgBytes, parser.lastRead}
 		readLoop(parser, msgIn)
 	}()
 
+	//写操作loop循环
 	writeLoop(netConn, msgOut, a.globalLog)
 }
 

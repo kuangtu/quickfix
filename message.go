@@ -369,6 +369,7 @@ func formatCheckSum(value int) string {
 	return fmt.Sprintf("%03d", value)
 }
 
+//创建消息，通过bytes.Buffer
 //Build constructs a []byte from a Message instance
 func (m *Message) build() []byte {
 	m.cook()
@@ -380,6 +381,7 @@ func (m *Message) build() []byte {
 	return b.Bytes()
 }
 
+//获取消息体长度，校验和
 func (m *Message) cook() {
 	bodyLength := m.Header.length() + m.Body.length() + m.Trailer.length()
 	m.Header.SetInt(tagBodyLength, bodyLength)

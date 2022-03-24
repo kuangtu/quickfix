@@ -3,6 +3,7 @@ package quickfix
 import (
 	"bufio"
 	"crypto/tls"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,7 @@ func (i *Initiator) Start() (err error) {
 	i.stopChan = make(chan interface{})
 
 	for sessionID, settings := range i.sessionSettings {
+		fmt.Println("the session Id is:", sessionID)
 		//TODO: move into session factory
 		var tlsConfig *tls.Config
 		if tlsConfig, err = loadTLSConfig(settings); err != nil {
@@ -44,6 +46,7 @@ func (i *Initiator) Start() (err error) {
 		//根据配置的sessionID，启动groutine
 		i.wg.Add(1)
 		go func(sessID SessionID) {
+			//针对每个session进行处理
 			i.handleConnection(i.sessions[sessID], tlsConfig, dialer)
 			i.wg.Done()
 		}(sessionID)
@@ -127,6 +130,7 @@ func (i *Initiator) waitForReconnectInterval(reconnectInterval time.Duration) bo
 func (i *Initiator) handleConnection(session *session, tlsConfig *tls.Config, dialer proxy.Dialer) {
 	var wg sync.WaitGroup
 	wg.Add(1)
+	//session的run方法是处理消息用的
 	go func() {
 		session.run()
 		wg.Done()
@@ -151,6 +155,7 @@ func (i *Initiator) handleConnection(session *session, tlsConfig *tls.Config, di
 		//开始连接对端地址
 		address := session.SocketConnectAddress[connectionAttempt%len(session.SocketConnectAddress)]
 		session.log.OnEventf("Connecting to: %v", address)
+		fmt.Printf("Connecting to: %v", address)
 
 		netConn, err := dialer.Dial("tcp", address)
 		//连接失败进行重连
@@ -179,10 +184,12 @@ func (i *Initiator) handleConnection(session *session, tlsConfig *tls.Config, di
 		//创建消息接收管道、消息发送管道
 		msgIn = make(chan fixIn)
 		msgOut = make(chan []byte)
+		fmt.Println("create msgIn msgOut channel")
 		if err := session.connect(msgIn, msgOut); err != nil {
 			session.log.OnEventf("Failed to initiate: %v", err)
 			goto reconnect
 		}
+		fmt.Println("send logon msg finished.")
 		//通过bufio的NewReader读取socket中的内容，并通过newParser解析
 		//其中接收到的数据通过管道传输
 		go readLoop(newParser(bufio.NewReader(netConn)), msgIn)
@@ -193,6 +200,7 @@ func (i *Initiator) handleConnection(session *session, tlsConfig *tls.Config, di
 			if err := netConn.Close(); err != nil {
 				session.log.OnEvent(err.Error())
 			}
+			//如果
 			close(disconnected)
 		}()
 
@@ -205,6 +213,7 @@ func (i *Initiator) handleConnection(session *session, tlsConfig *tls.Config, di
 
 	reconnect:
 		connectionAttempt++
+		fmt.Println("reconnecting..")
 		session.log.OnEventf("Reconnecting in %v", session.ReconnectInterval)
 		if !i.waitForReconnectInterval(session.ReconnectInterval) {
 			return
