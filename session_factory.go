@@ -58,6 +58,7 @@ func (f sessionFactory) createSession(
 	if err = registerSession(session); err != nil {
 		return
 	}
+	//session创建的时候调用的方法
 	application.OnCreate(session.sessionID)
 	session.log.OnEvent("Created session")
 
@@ -404,7 +405,7 @@ func (f sessionFactory) buildHeartBtIntSettings(session *session, settings *Sess
 			return
 		}
 	}
-	
+
 	if session.HeartBtIntOverride || mustProvide {
 		var heartBtInt int
 		if heartBtInt, err = settings.IntSetting(config.HeartBtInt); err != nil {

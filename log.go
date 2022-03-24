@@ -6,8 +6,8 @@ type Log interface {
 	OnIncoming([]byte)
 
 	//log outgoing fix message
+	
 	OnOutgoing([]byte)
-
 	//log fix event
 	OnEvent(string)
 

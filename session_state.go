@@ -21,6 +21,7 @@ func (sm *stateMachine) Start(s *session) {
 	sm.CheckSessionTime(s, time.Now())
 }
 
+//会话层，发送登录消息
 func (sm *stateMachine) Connect(session *session) {
 	// No special logon logic needed for FIX Acceptors.
 	if !session.InitiateLogon {
@@ -35,6 +36,7 @@ func (sm *stateMachine) Connect(session *session) {
 		}
 	}
 	session.log.OnEvent("Sending logon request")
+	fmt.Println("sending logon request")
 	if err := session.sendLogon(); err != nil {
 		session.logError(err)
 		return

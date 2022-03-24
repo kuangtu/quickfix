@@ -52,6 +52,7 @@ func (c MessageRouter) Route(msg *Message, sessionID SessionID) MessageRejectErr
 	return c.tryRoute(string(beginString), string(msgType), msg, sessionID)
 }
 
+//针对收到的消息进行分发处理
 func (c MessageRouter) tryRoute(beginString string, msgType string, msg *Message, sessionID SessionID) MessageRejectError {
 	fixVersion := beginString
 	isAdminMsg := isAdminMessageType([]byte(msgType))

@@ -10,6 +10,7 @@ var msgTypeReject = []byte("3")
 var msgTypeSequenceReset = []byte("4")
 var msgTypeLogout = []byte("5")
 
+//会话层消息
 //isAdminMessageType returns true if the message type is a session level message.
 func isAdminMessageType(m []byte) bool {
 	switch {
