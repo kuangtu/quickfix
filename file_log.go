@@ -35,6 +35,7 @@ type fileLogFactory struct {
 	sessionLogPaths map[SessionID]string
 }
 
+//创建文件日志，配置文件中通过"FileLogPath"设置目录
 //NewFileLogFactory creates an instance of LogFactory that writes messages and events to file.
 //The location of global and session log files is configured via FileLogPath.
 func NewFileLogFactory(settings *Settings) (LogFactory, error) {
