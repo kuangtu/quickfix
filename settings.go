@@ -36,6 +36,7 @@ func NewSettings() *Settings {
 	return s
 }
 
+//每个session结构体中，初始化了变量
 func sessionIDFromSessionSettings(globalSettings *SessionSettings, sessionSettings *SessionSettings) SessionID {
 	sessionID := SessionID{}
 
@@ -79,6 +80,7 @@ func sessionIDFromSessionSettings(globalSettings *SessionSettings, sessionSettin
 //ParseSettings creates and initializes a Settings instance with config parsed from a Reader.
 //Returns error if the config is has parse errors
 func ParseSettings(reader io.Reader) (*Settings, error) {
+	//初始化了session配置
 	s := NewSettings()
 
 	//针对每行配置，设置了正则表达式
@@ -102,11 +104,12 @@ func ParseSettings(reader io.Reader) (*Settings, error) {
 		//如果是注释行、空行跳过
 		case commentRegEx.MatchString(line) || blankRegEx.MatchString(line):
 			continue
-		//默认配置
+		//配置文件中[DEFAULT]是全局配置
 		case defaultRegEx.MatchString(line):
 			settings = s.GlobalSettings()
 
 		case sessionRegEx.MatchString(line):
+			//每个SESSION对应了不同的FIX协议版本
 			if settings != nil && settings != s.GlobalSettings() {
 				if _, err := s.AddSession(settings); err != nil {
 					return nil, err
